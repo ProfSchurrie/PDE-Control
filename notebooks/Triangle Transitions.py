@@ -37,7 +37,7 @@ from phi.flow import *
 domain = Domain([64, 64])  # 1D Grid resolution and physical size
 step_count = 16  # how many solver steps to perform
 dt = 1.0  # Time increment per solver step
-example_count = 1000
+example_count = 8000
 batch_size = 100
 data_path = 'shape-transitions'
 pretrain_data_path = 'moving-squares'
@@ -153,8 +153,8 @@ pylab.show()
 # # Supervised Initialization
 #%%
 test_range = range(100)
-val_range = range(100, 200)
-train_range = range(200, 1000)
+val_range = range(100, 500)
+train_range = range(500, 7500)
 #%% md
 # The following cell trains the $OP_2$, $OP_4$, $OP_8$, $OP_{16}$ networks from scratch. You can skip it and load the checkpoints by running the cell after.
 #%%
@@ -165,7 +165,7 @@ for n in [2, 4, 8, 16]:
                           datapath=pretrain_data_path, val_range=val_range, train_range=train_range, trace_to_channel=lambda _: 'density',
                           obs_loss_frames=[n//2], trainable_networks=['OP%d' % n],
                           sequence_class=None).prepare()
-    for i in range(1000):
+    for i in range(3000):
         app.progress()  # Run Optimization for one batch
     supervised_checkpoints['OP%d' % n] = app.save_model()
 #%%
@@ -195,12 +195,12 @@ supervised_checkpoints['CFE'] = app.save_model()
 staggered_app = ControlTraining(step_count, IncompressibleFluidPDE(domain, dt),
                                 datapath=data_path, val_range=val_range, train_range=train_range, trace_to_channel=lambda _: 'density',
                                 obs_loss_frames=[step_count], trainable_networks=['CFE', 'OP2', 'OP4', 'OP8', 'OP16'],
-                                sequence_class=StaggeredSequence, learning_rate=5e-4).prepare()
+                                sequence_class=StaggeredSequence, learning_rate=3e-4).prepare()
 #%% md
 # The next cell initializes the networks using the supervised checkpoints and then trains all networks jointly. You can skip it and load the checkpoint by running the cell after.
 #%%
 staggered_app.load_checkpoints(supervised_checkpoints)
-for i in range(1000):
+for i in range(7000):
     staggered_app.progress()  # Run staggered Optimization for one batch
 staggered_checkpoint = staggered_app.save_model()
 print("Checkpoint saved to:", staggered_checkpoint)
@@ -216,7 +216,7 @@ import pylab
 from pprint import pprint
 
 scene_ids = Scene.list(data_path)
-scene = scene_ids[700]  # Choose any test scene
+scene = scene_ids[0]  # Choose any test scene
 pprint(scene.__class__)
 state = scene.read_array('density', frame=step_count)  # Already a NumPy array
 
@@ -229,7 +229,7 @@ for i in range(state.shape[0]):
 states = staggered_app.infer_all_frames(test_range)
 #%%
 import pylab
-batches = [1, 2, 3]
+batches = [0, 1, 2]
 pylab.subplots(len(batches), 9, sharey='row', sharex='col', figsize=(12, 7))
 pylab.tight_layout(w_pad=0)
 for i, batch in enumerate(batches):
@@ -237,6 +237,6 @@ for i, batch in enumerate(batches):
         pylab.subplot(len(batches), 9, t + 1 + i * 9)
         pylab.title('t=%d' % t * 2)
         pylab.imshow(states[t * 2].density.data[batch, ..., 0], origin='lower')
-pylab.savefig('shape-transitions.png')
+pylab.savefig('shape-transitions_5000.png')
 #%% md
 # Using the same procedure as with the Burgers example, we could use a `RefinedSequence` and train with the prediction refinement scheme. The results are already looking rather nice, so we'll leave it up to the reader ;-)
